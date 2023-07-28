@@ -149,7 +149,7 @@ def get_p_interaction(N, beta_mean, beta_var):
 def plot_timeseries(t, N_history, penc_history, pint_history, 
                    mean_penc_history, mean_pint_history, 
                    mean_pc_history, hr_radius_history, alive_history, 
-                   beta_mean, beta_var):
+                   beta_mean, beta_var, change_lure_day):
     
     plt.close()
     
@@ -170,40 +170,75 @@ def plot_timeseries(t, N_history, penc_history, pint_history,
     axs[0].text(0.75, 5, '$\sigma^2$={0:.1f}'.format(beta_var))
     
     # Plot population size history
-    axs[1].plot(range(t+1), N_history[0:t+1])
+    axs[1].plot(range(t), N_history[0:t])
+    axs[1].axvline(x=change_lure_day, color="red", linestyle="--", 
+                   label="Change of lure")
     axs[1].set_ylabel("Population size")
     axs[1].set_xlabel("time (days)")
     axs[1].grid(alpha=0.5)
     axs[1].set_axisbelow(True)
     axs[1].set_ylim(bottom=0)
+    axs[1].set_xlim(right=1000)
+    if not np.isnan(change_lure_day):
+        axs[1].legend(loc="upper right")
     
     # Plot mean p_enc and home-range radius on same plot
-    axs[2].plot(range(t+1), mean_penc_history[0:t+1])
+    axs[2].plot(range(t), mean_penc_history[0:t])
     axs[2].set_ylabel("mean $p_{encTOT}$", color="#1f77b4")
     axs[2].set_xlabel("time (days)")
     axs[2].tick_params(axis='y', colors="#1f77b4")
     axs[2].spines['left'].set_color('#1f77b4')
     axs[2].grid(alpha=0.5)
     axs[2].set_axisbelow(True)
+    axs[2].set_xlim(right=1000)
     
     ax2 = axs[2].twinx()
-    ax2.plot(range(t+1), hr_radius_history[0:t+1], color=color)
+    ax2.plot(range(t), hr_radius_history[0:t], color=color)
     ax2.set_ylabel("HR radius (m)", color=color)
     ax2.set_xlabel("time (days)")
     ax2.tick_params(axis='y', colors=color)
     ax2.spines['right'].set_color(color)
     
-    # Plot mean p_int and mean p_capture on same plot
-    axs[3].plot(range(t+1), mean_pint_history[0:t+1])
+    # Plot mean p_int 
+    axs[3].plot(range(t), mean_pint_history[0:t])
+    axs[3].axvline(x=change_lure_day, color="red", linestyle="--", 
+                   label="Change of lure")
     axs[3].set_ylabel("mean $p_{int}$")
     axs[3].set_xlabel("time (days)")
     axs[3].grid(alpha=0.5)
     axs[3].set_axisbelow(True)
+    axs[3].set_xlim(right=1000)
+    if not np.isnan(change_lure_day):
+        axs[3].legend(loc="upper right")
     
     fig.tight_layout()
     plt.show()
     # fig.delaxes(axs[0,1])
     
+
+def plot_pint_dist(t, pint_history, alive_history):
+    
+    fig, axs = plt.subplots(ncols=1, nrows=2, figsize=(4, 5))
+    
+    # Plot histogram of previous personality distribution
+    axs[0].hist(x=pint_history[alive_history[:, t-1] == True, t-1], 
+                density=True, bins=20, edgecolor='black')
+    axs[0].set_title("$p_{int}$ distribution at $t_{prev}$")
+    axs[0].grid(alpha=0.5)
+    axs[0].set_axisbelow(True)
+    axs[0].set_ylabel("PDF")
+    
+    # Plot histogram of current personality distribution
+    axs[1].hist(x=pint_history[alive_history[:, t] == True, t], 
+                density=True, bins=20, edgecolor='black')
+    axs[1].set_title("$p_{int}$ distribution at $t_{curr}$")
+    axs[1].grid(alpha=0.5)
+    axs[1].set_axisbelow(True)
+    axs[1].set_ylabel("PDF")
+    axs[1].set_xlim(left=0)
+    
+    fig.tight_layout()
+    plt.show()
     
     
 trap_grid_spacing = 200.

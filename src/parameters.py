@@ -8,8 +8,8 @@ class Params:
     def __init__(self):
         
         # POPULATION CONSTANTS
-        self.study_area = 100               # (ha)
-        self.N0 = 1000                       # Initial population
+        self.study_area = 17               # (ha)
+        self.N0 = 150                       # Initial population
         self.D0 = self.N0 / self.study_area # Initial density
         
         # Population size
@@ -55,7 +55,6 @@ class Params:
         self.filter_dist_bool = False       # If true, penc=0 for traps outside hr
         
         
-        
         # TRAP GRID CONSTANTS
         
         self.trapping_on = True     # Boolean to switch trapping on or off
@@ -68,4 +67,8 @@ class Params:
         
         # PLOT PARAMS
         self.plots = False      # If true, plot live plots
+        
+        # CHANGE OF LURE
+        self.change_lure_threshold = 0.01
+        self.new_lure_effectiveness = 0.1
         

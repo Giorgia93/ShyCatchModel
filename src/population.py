@@ -45,7 +45,24 @@ class Population:
         
         # Individual status
         self.alive = np.concatenate([np.ones(params.N0), 
-                                     np.zeros(params.Kcap - params.N0)])    
+                                     np.zeros(params.Kcap - params.N0)])  
+        
+    
+    def change_lure(self, effectiveness_change):
+        """
+        Function that updates the animals' p_int values according to a given
+        effectiveness increase factor resulting from a change of lure
+
+        Parameters
+        ----------
+        effectiveness_change : float
+            Effectiveness change factor
+
+        """
+        new_pint = self.p_int + effectiveness_change
+        new_pint[new_pint > 1] = 1
+        self.p_int = new_pint
+        
     
     
     def get_home_range_radius(self, pop_density, sD_fit_coeff):

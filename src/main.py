@@ -11,6 +11,7 @@ from parameters import Params
 from population import Population
 import numpy as np
 import toolbox as tb
+from copy import copy
 
 
 def main():
@@ -29,18 +30,12 @@ def main():
     mean_penc_history = np.zeros(params.t_max)   # Initialisation of p_enc data matrix
     mean_pint_history = np.zeros(params.t_max)   # Initialisation of p_int data matrix
     mean_pc_history = np.zeros(params.t_max) # Initialisation of p_capture data matrix
-
+    change_lure_day = float("nan")
 
     for t in range(params.t_max):
         
-        print("Day {0}. Population size = {1}".format(t, pop.pop_size))
-        
-        # Live plots
-        if params.plots and t > 2:
-            tb.plot_timeseries(t-1, N_history, penc_history, pint_history, 
-                               mean_penc_history, mean_pint_history, 
-                               mean_pc_history, hr_radius_history, 
-                               alive_history)
+        if np.mod(t, 100) == 0:
+            print("Day {0}. Population size = {1}".format(t, pop.pop_size))
         
         # If less than mim_pop or time > 1000 days, stop simulation
         if pop.pop_size < params.min_pop:
@@ -62,10 +57,20 @@ def main():
         mean_pint_history[t] = np.mean(pop.p_int[pop.alive == 1])
         mean_pc_history[t] = np.mean(pop.p_capture[pop.alive == 1])
         
+        # Change lure if rate of capture falls below a set value
+        avg_daily_capture = np.abs(N_history[t-7] - pop.pop_size) / 7
+        if params.new_lure_effectiveness > 0 and np.isnan(change_lure_day) and t >= 10 and avg_daily_capture < params.change_lure_threshold:
+            pop.change_lure(params.new_lure_effectiveness)
+            pint_history[:, t] = pop.p_int
+            change_lure_day = copy(t)
+            # tb.plot_pint_dist(t, pint_history, alive_history)
+        
+    # Plot timeseries at the end of simulation
     tb.plot_timeseries(t, N_history, penc_history, pint_history, 
                        mean_penc_history, mean_pint_history, 
                        mean_pc_history, hr_radius_history, 
-                       alive_history, params.beta_mean, params.beta_var)
+                       alive_history, params.beta_mean, params.beta_var, 
+                       change_lure_day)
     
     if t + 1 == params.t_max:
         print('Time s up, eradication not complete, {0} possums left after {1} days.'.format(
