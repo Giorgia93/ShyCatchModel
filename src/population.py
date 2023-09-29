@@ -23,22 +23,41 @@ class Population:
         self.beta_var = params.beta_var
         self.p_int = tb.get_p_interaction(params.Kcap, 
                                           self.beta_mean, self.beta_var)
+        self.p_intB = tb.get_p_interaction(params.Kcap, 
+                                          self.beta_mean * params.new_lure_mean_pint_mult, 
+                                          self.beta_var)
+        # Proportion of the population that display, respectively, a decreased
+        # attraction towards the second lure, no change in attraction, and an
+        # increase in attraction. These need to sum to one.
+        self.lure_preference_prop = [0.25, 0.6, 0.15] 
+        # Multipliers applied to p_int in each of the three cases described above
+        self.attraction_change_mult = [0.8, 1, 3]
+        # Multipliers randomly assigned to each individual with weights defined above
+        self.new_lure_reaction = np.random.choice(self.attraction_change_mult, 
+                                                  params.Kcap, 
+                                                  p=self.lure_preference_prop) 
+        # Probability of finding lure A vs lure B
+        self.lure_prop = params.lure_prop[0]
         
         # Vertical transmission of trap-shyness
         self.vertical_trans = params.vert_trans
         
         # Home-range size and probability of encounter
-        self.max_hr_radius = params.max_hr_radius
-        self.hr_radius = self.get_home_range_radius(self.pop_density, 
-                                                    params.sD_fit_coeff)
-        self.distances_from_traps = tb.get_distances_from_traps(params.trap_grid_spacing, 
-                                                self.hr_radius, 
-                                                params.perception_dist*2, 
-                                                params.max_hr_radius, params.Kcap)
-        self.p_enc = self.get_p_encounter(self.distances_from_traps, 
-                                          params.beta_mean,
-                                          params.g0s_fit_coeff, 
-                                          params.filter_dist_bool)
+        # self.max_hr_radius = params.max_hr_radius
+        self.hr_radius = params.hr_radius0
+        # [self.hr_centres, self.all_distances_from_traps] = \
+        #     tb.get_distances_from_trap_data(params.trap_locations, 
+        #                                     params.perception_dist, 
+        #                                     params.Kcap, self.hr_radius)
+        # self.distances_from_traps = \
+        #     tb.filter_active_traps(params.trap_locations, 
+        #                            self.all_distances_from_traps, 1)
+            
+        # Get all penc with current trap layout
+        self.p_enc_all = params.p_enc_all
+        # Only get penc for current hr size
+        self.p_enc = \
+            np.squeeze(self.p_enc_all[params.possible_hr_radii==int(self.hr_radius), :])
         
         # Probability of capture
         self.p_capture = self.p_enc * self.p_int
@@ -48,7 +67,7 @@ class Population:
                                      np.zeros(params.Kcap - params.N0)])  
         
     
-    def change_lure(self, effectiveness_change):
+    def change_lure(self, type_of_change=0, effectiveness_change=0, lureB_prop=0):
         """
         Function that updates the animals' p_int values according to a given
         effectiveness increase factor resulting from a change of lure
@@ -59,41 +78,27 @@ class Population:
             Effectiveness change factor
 
         """
-        new_pint = self.p_int + effectiveness_change
-        new_pint[new_pint > 1] = 1
-        self.p_int = new_pint
-        
-    
-    
-    def get_home_range_radius(self, pop_density, sD_fit_coeff):
-        """
-        Function that gets animals' home range radius according to given 
-        population densities, using log-log lm coefficients defined in params.py
-        
-        Parameters
-        ----------
-        fit_coeff : 1x2 float array
-            Array containing the coefficients b0 and b1 of the model 
-            log(sigma) = b0 + b1*log(density), as described in the Vattiato23 
-            paper on pest detectability
-        
-        Returns
-        -------
-        hr_radius : float
-            Updated home-range radius in meters
+        if type_of_change == "bump_up":
+            new_pint = self.p_int + effectiveness_change
+            new_pint[new_pint > 1] = 1
+            self.p_int = new_pint
+        elif type_of_change == "redraw":
+            # Get mean and variance of surviving animals' p_int
+            current_pint_mean = np.mean(self.p_int[self.alive==1])
+            current_pint_var = np.var(self.p_int[self.alive==1])
+            # Re-draw surviving animals p_int from beta distribution with 
+            # bumped-up mean and current variance
+            new_pint = tb.get_p_interaction(int(self.pop_size), 
+                                            current_pint_mean * effectiveness_change, 
+                                            current_pint_var)
+            self.p_int[self.alive==1] = new_pint
+        elif type_of_change == "lure_prop":
+            self.lure_prop = lureB_prop
             
-        """
-        
-        # Use log-log lm fit parameters from pest detectability data to updat sigma
-        sigma = np.exp(sD_fit_coeff[0] + np.log(pop_density) * sD_fit_coeff[1])
-        
-        # Convert sigma to hr_size (circular area in m2)
-        new_hr_area = np.pi * (2.45 * sigma) ** 2
-        
-        # Calculate hr radius (m) from hr area (m2)
-        hr_radius = min(self.max_hr_radius, np.sqrt(new_hr_area / np.pi))
-        
-        return hr_radius
+        elif type_of_change == 0 or \
+            (type_of_change != "lure_prop" and effectiveness_change == 0) or \
+            (type_of_change == "lure_prop" and lureB_prop == 0):
+            print("Error: type of lure change not recognised")
     
     
     def get_p_encounter(self, distances, beta_mean, g0s_fit_coeff, 
@@ -227,6 +232,24 @@ class Population:
         
     
     def update_population(self, t, params):
+        """
+        Function that updates population parameters such as population size,
+        home-range size, probability of encountering a trap, probability
+        of capture, alive/dead status. This is done after calculating
+        daily births, natural deaths, animals trapped.
+
+        Parameters
+        ----------
+        t : float
+            Current time step (day)
+        params : struct
+            Structure of parameters as defined in parameters.py
+
+        Returns
+        -------
+        None.
+
+        """
         
         # At start of reproduction season, reset nb of juvies and calculate
         # this year's birth rate
@@ -235,6 +258,26 @@ class Population:
             self.daily_birth_rate = self.get_birth_rate(params.annual_rep_rate,
                                                         params.dd_mor, 
                                                         params.birth_prob)
+            
+        # At the start of period 2, activate second group of traps
+        if params.trap_grid_type == "from_data" and \
+            np.mod(t, 365) == params.period2_start: 
+            # Update all penc with new traps
+            self.p_enc_all = params.p_enc_all2
+            self.p_enc = \
+                np.squeeze(self.p_enc_all[params.possible_hr_radii==int(self.hr_radius), :])
+            # Update p_capture with new p_enc
+            self.p_capture = self.p_enc * self.p_int
+        
+        # At the start of period 3, activate third group of traps
+        elif params.trap_grid_type == "from_data" and \
+            np.mod(t, 365) == params.period3_start: 
+            # Update all penc with new traps
+            self.p_enc_all = params.p_enc_all3
+            self.p_enc = \
+                np.squeeze(self.p_enc_all[params.possible_hr_radii==int(self.hr_radius), :])
+            # Update p_capture with new p_enc
+            self.p_capture = self.p_enc * self.p_int
         
         # Natural deaths
         nat_deaths = np.random.binomial(sum(self.alive), params.daily_mort_rate);
@@ -244,11 +287,39 @@ class Population:
             self.alive[dead_indexes] = 0
             self.pop_size = max(0, self.pop_size - nat_deaths)
             
+            
         # Trap captures
+        
+        # Boolean for individuals that have found lure B (new), given the 
+        # current proportion of traps lured with lure B
+        lureBfound = np.random.choice([0, 1], size=params.Kcap, 
+                                      p=self.lure_prop) # Individual probability of finding lure B
+        
+        # OLD METHOD
+        # # Initialisation of pint multipliers
+        # pint_multipliers = np.ones(params.Kcap) 
+        # # Change multipliers to individual reactions for individuals that found the new lure
+        # pint_multipliers[lureBfound == 1] = self.new_lure_reaction[lureBfound == 1]
+        
+        # # Update p_capture with new multipliers
+        # old_mean_pcap = np.mean(self.p_capture[self.alive==1])
+        # self.p_capture *= pint_multipliers
+        # cur_mean_pcap = np.mean(self.p_capture[self.alive==1])
+        
+        # if params.verbose and self.lure_prop != [1, 0]:
+        #     print('Mean p_capture change = {0:.5f} --> {1:.5f}'.format(old_mean_pcap, cur_mean_pcap))
+
+        # NEW METHOD
+        # Update p_capture with p_intB instead of original p_int
+        self.p_capture[lureBfound == 1] = \
+            self.p_capture[lureBfound == 1] / self.p_int[lureBfound == 1] * \
+            self.p_intB[lureBfound == 1]      
+        
+        # Randomly draw newly captured individuals, if trapping is on
         captured_indexes = (np.random.rand(params.Kcap) <= self.p_capture) * params.trapping_on
         if sum(captured_indexes) > 0:
-            self.alive[captured_indexes == 1] = 0
-            self.pop_size = max(0, sum(self.alive))
+            self.alive[captured_indexes == 1] = 0    # Update alive individuals
+            self.pop_size = max(0, sum(self.alive))  # Update pop size
         
         # Calculate today's number of newborns and update population
         nb_newborn_today = np.random.binomial(sum(self.alive), self.daily_birth_rate[np.mod(t, 365)])
@@ -258,17 +329,17 @@ class Population:
         # Update current density with new pop size
         self.pop_density = self.pop_size / params.study_area
         
-        # Update hr_radius with new density
-        self.hr_radius = self.get_home_range_radius(self.pop_density, 
-                                                    params.sD_fit_coeff)  
-        
-        # Update p_enc with new hr radius
-        self.p_enc = self.get_p_encounter(self.distances_from_traps, 
-                                          params.beta_mean,
-                                          params.g0s_fit_coeff, 
-                                          params.filter_dist_bool)
-        # Update p_capture with new p_enc
-        self.p_capture = self.p_enc * self.p_int
+        if self.pop_size > 0:
+            # Update hr_radius with new density
+            self.hr_radius = tb.get_home_range_radius(params.max_hr_radius, 
+                                                      self.pop_density, 
+                                                      params.sD_fit_coeff)  
+            # Update p_enc with new hr radius
+            self.p_enc = \
+                np.squeeze(self.p_enc_all[params.possible_hr_radii==int(self.hr_radius), :])
+            
+            # Update p_capture with new p_enc
+            self.p_capture = self.p_enc * self.p_int
                                  
 
     def print_pop_size(self):
