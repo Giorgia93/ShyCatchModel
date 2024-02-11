@@ -221,9 +221,9 @@ def get_beta_params(mu, var):
     returns the corresponding alpha and beta parameters
 
     """
-    alpha = ((1 - mu) / var - 1 / mu) * mu ** 2;
-    beta = alpha * (1 / mu - 1);
-    
+    alpha = np.nanmax((((1 - mu) / var - 1 / mu) * mu ** 2, 0.001))
+    beta = np.nanmax((alpha * (1 / mu - 1), 0.001))
+    # print(alpha, beta)
     return alpha, beta
 
 
@@ -467,6 +467,7 @@ def get_p_interaction(N, beta_mean, beta_var):
     """
     # Convert trappability distribution mean and variance into beta 
     # distribution parameters
+    # print(beta_mean, beta_var)
     a, b = get_beta_params(beta_mean, beta_var)
     while a <= 0:
         beta_var *= 0.9
@@ -598,12 +599,13 @@ def plot_captures_comparison(model_t0, model_nb_days, model_captures,
     model_t = [model_t0 + pd.DateOffset(i) for i in range(len(data_captures))]
     model_c = moving_average(model_captures[:, 0:len(data_captures)], mav_window)
     model_c2 = moving_average(model_captures_jumpdate[:, 0:len(data_captures)], mav_window)
+    model_c2 = model_captures_jumpdate[:, 0:len(data_captures)]
     model_n = model_N[:, 0:len(data_captures)]
     model_pe = model_penc[:, 0:len(data_captures)]
     model_hr = model_hr[:, 0:len(data_captures)]
     model_pi = model_pint[:, 0:len(data_captures)]
     model_cb = np.array([np.min(model_c, axis=0), np.max(model_c, axis=0)])
-    model_c2b = np.array([np.min(model_c2, axis=0), np.max(model_c2, axis=0)])
+    model_c2b = np.array([np.nanmin(model_c2, axis=0), np.nanmax(model_c2, axis=0)])
     model_nb = np.array([np.min(model_n, axis=0), np.max(model_n, axis=0)])
     model_peb = np.array([np.min(model_pe, axis=0), np.max(model_pe, axis=0)])
     model_hrb = np.array([np.min(model_hr, axis=0), np.max(model_hr, axis=0)])
@@ -614,6 +616,7 @@ def plot_captures_comparison(model_t0, model_nb_days, model_captures,
     ifig = 0
     
     fig, axs = plt.subplots(ncols=1, nrows=6, figsize=(8, 20))
+    fig, axs = plt.subplots(ncols=1, nrows=2, figsize=(8, 8))
     
     # Plot daily capture history
     axs[ifig].fill_between(data_t_filt, model_c2b[0, :], 
@@ -621,12 +624,13 @@ def plot_captures_comparison(model_t0, model_nb_days, model_captures,
     for i in range(nb_traj):
         axs[ifig].plot(data_t_filt, model_c2[i, :], color="black", alpha = error_norm[i])
     axs[ifig].plot(data_t_filt, model_c2[nb_traj, :], color="black", alpha = error_norm[nb_traj], label="model")
-    axs[ifig].plot(data_captures.date, data_captures.data_captures, 'rx', 
-            label="data")
+    axs[ifig].plot(data_captures.date[np.isnan(data_captures.data_captures) == False], 
+                   data_captures.data_captures[np.isnan(data_captures.data_captures) == False], 
+                   'rx', label="data")
     axs[ifig].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
     axs[ifig].yaxis.set_major_locator(MaxNLocator(integer=True))
     axs[ifig].set_ylabel("captures")
-    axs[ifig].set_ylim(top=70)
+    # axs[ifig].set_ylim(top=75)
     axs[ifig].set_xlabel("date")
     axs[ifig].grid(alpha=0.5)
     axs[ifig].legend(loc="upper right")
@@ -694,6 +698,40 @@ def plot_captures_comparison(model_t0, model_nb_days, model_captures,
     axs[ifig].set_ylabel("mean $p_{int}$")
     axs[ifig].set_xlabel("date")
     axs[ifig].grid(alpha=0.5)
+    
+
+def plot_captures_comparison_only(model_captures_jumpdate, model_N, 
+                                  data_captures, errors):
+    
+    error_norm = 1 - (errors-np.min(errors)) / (np.max(errors)-np.min(errors))
+    nb_traj = min(20, len(model_captures_jumpdate)-1)  # Number of model trajectories to plot
+    
+    model_c2 = model_captures_jumpdate[:, 0:len(data_captures)]
+    model_c2b = np.array([np.nanmin(model_c2, axis=0), np.nanmax(model_c2, axis=0)])
+    
+    data_t_filt = data_captures.date[np.isnan(data_captures.data_captures) == False]
+    
+    fig, ax = plt.subplots(figsize=(8, 5)) 
+    # plt.figure(figsize=(8, 5))
+    
+    # Plot daily capture history
+    ax.fill_between(data_t_filt, model_c2b[0, :], 
+                        model_c2b[1, :], color="lightgray")
+    for i in range(nb_traj):
+        ax.plot(data_t_filt, model_c2[i, :], color="black", alpha = error_norm[i])
+    ax.plot(data_t_filt, model_c2[nb_traj, :], color="black", alpha = error_norm[nb_traj], label="model")
+    ax.plot(data_captures.date[np.isnan(data_captures.data_captures) == False], 
+                   data_captures.data_captures[np.isnan(data_captures.data_captures) == False], 
+                   'rx', label="data")
+    # ax.axvline(x = datetime.strptime("09-Jun", "%d-%b"), color='b', label="new traps added")
+    # ax.axvline(x = datetime.strptime("15-Jun", "%d-%b"), color='b', label="new traps added")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_ylabel("captures")
+    # ax.set_ylim(top=75)
+    ax.set_xlabel("date")
+    ax.grid(alpha=0.5)
+    ax.legend(loc="upper right")
     
 
 def plot_single_scenario(model_t0, model_nb_days, model_captures, model_N, 
@@ -942,6 +980,25 @@ def plot_traps_locations(location_data):
     ax.set_xlabel("(m)")
     ax.set_ylabel("(m)")
     
+    forpaper = True
+    if forpaper:
+        fig, ax = plt.subplots(figsize=(10, 15))
+        ax.scatter(x1, y1, color='r', marker='x', linewidth=3, label="Active from date 1")
+        ax.scatter(x2, y2, color='b', marker='x', linewidth=3, label="Active from date 2")
+        ax.scatter(x3, y3, color='g', marker='x', linewidth=3, label="Active from date 3")
+        ax.set_xticks(minor_ticks_x, minor=True)
+        ax.set_yticks(minor_ticks_y, minor=True)
+        ax.grid(which='both', alpha=0.3)
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ax.set_xlim((0, max(location_data.new_x) + 100))
+        ax.set_ylim((0, max(location_data.new_y) + 100))
+        ax.set_xlim((-100, max(location_data.new_x) + 200))
+        ax.set_ylim((-100, max(location_data.new_y) + 200))
+        ax.set_xlabel("(m)")
+        ax.set_ylabel("(m)")
+        fig.savefig("LB_trapgrid.svg", transparent=True)
+    
+    
 
 def plot_traps_and_hr_locations(location_data, hrc_coord, hr_radius):
     
@@ -979,6 +1036,7 @@ def plot_traps_and_hr_locations(location_data, hrc_coord, hr_radius):
     ax.set_xlabel("(m)")
     ax.set_ylabel("(m)")
     
+    
 
 def plot_pint_dist(t, pint_history, alive_history):
     
@@ -1014,9 +1072,11 @@ def plot_posteriors(posterior, priors):
     var = posterior.get("beta_mean")
     prior_bounds = priors.get("beta_mean")
     best_mean = var[np.argmin(posterior.error)]
+    med_mean = np.median(var)
     axs[0, 0].hist(x = var, bins=20, weights = 100*np.ones_like(var)/len(var),
                 edgecolor='black', color='grey', label="posterior")
-    axs[0, 0].axvline(x = best_mean, color='r', linewidth=2)
+    # axs[0, 0].axvline(x = best_mean, color='r', linewidth=2)
+    axs[0, 0].axvline(x = med_mean, color='r', linewidth=2)
     axs[0, 0].grid(alpha=0.5)
     axs[0, 0].set_axisbelow(True)
     axs[0, 0].set_xlabel("Initial mean $\mu_0$ of population's $p_{int}$")
@@ -1028,12 +1088,14 @@ def plot_posteriors(posterior, priors):
     var = posterior.get("beta_var")
     prior_bounds = priors.get("beta_var")
     best_var = var[np.argmin(posterior.error)]
+    med_var = np.median(var)
     axs[0, 1].hist(x = var, bins=20, weights = 100*np.ones_like(var)/len(var),
                 edgecolor='black', color='grey', label="posterior")
-    axs[0, 1].axvline(x = best_var, color='r', linewidth=2)
+    # axs[0, 1].axvline(x = best_var, color='r', linewidth=2)
+    axs[0, 1].axvline(x = med_var, color='r', linewidth=2)
     axs[0, 1].grid(alpha=0.5)
     axs[0, 1].set_axisbelow(True)
-    axs[0, 1].set_xlabel("Initial variance $\sigma_0^2$ of population's $p_{int}$")
+    axs[0, 1].set_xlabel("Initial variance $s_0^2$ of population's $p_{int}$")
     axs[0, 1].set_ylabel("Frequency")
     axs[0, 1].yaxis.set_major_formatter(PercentFormatter())
     axs[0, 1].set_xlim([prior_bounds[0], prior_bounds[1]])
@@ -1043,7 +1105,8 @@ def plot_posteriors(posterior, priors):
     prior_bounds = priors.get("N0")
     axs[1, 0].hist(x = var, bins=20, weights = 100*np.ones_like(var)/len(var),
                 edgecolor='black', color='grey', label="posterior")
-    axs[1, 0].axvline(x = var[np.argmin(posterior.error)], color='r', linewidth=2)
+    # axs[1, 0].axvline(x = var[np.argmin(posterior.error)], color='r', linewidth=2)
+    axs[1, 0].axvline(x = np.median(var), color='r', linewidth=2)
     axs[1, 0].grid(alpha=0.5)
     axs[1, 0].set_axisbelow(True)
     axs[1, 0].set_xlabel("Initial population size $N_0$")
@@ -1052,9 +1115,28 @@ def plot_posteriors(posterior, priors):
     axs[1, 0].set_xlim([prior_bounds[0], prior_bounds[1]])
     axs[1, 0].set_title("(c)", loc='left', weight='bold', y=title_ypos)
     
+    errors = posterior.error
+    error_norm = 1 - (errors-np.min(errors)) / (np.max(errors)-np.min(errors))
+
+    
+    beta_means = posterior.get("beta_mean")
+    beta_vars = posterior.get("beta_var")
+    x = np.linspace(0.01, 0.99, 1000)
+    y = np.zeros((1000, len(var)))
+    for i in range(len(var)):
+        (a, b) = get_beta_params(beta_means[i], beta_vars[i])
+        y[:, i] = beta.pdf(x, a, b)
     (a, b) = get_beta_params(best_mean, best_var)
-    x = np.linspace(0, 1, 1000)
-    axs[1, 1].plot(x, beta.pdf(x, a, b), 'r-', lw=2)
+    y_best = beta.pdf(x, a, b)
+    (a, b) = get_beta_params(med_mean, med_var)
+    y_med = beta.pdf(x, a, b)
+    axs[1, 1].grid(alpha=0.5)
+    axs[1, 1].fill_between(x, np.nanmin(y, axis=1), 
+                           np.nanmax(y, axis=1), color="lightgray")
+    for i in range(20):
+        axs[1, 1].plot(x, y[:, np.random.randint(0, len(var))], color='black', alpha = error_norm[i])
+    # axs[1, 1].plot(x, y_best, 'r-', lw=2)
+    axs[1, 1].plot(x, y_med, 'r-', lw=2)
     axs[1, 1].set_xlabel("Probability of interaction $p_{int}$")
     axs[1, 1].set_ylabel("PDF")
     axs[1, 1].set_title("(d)", loc='left', weight='bold', y=title_ypos)
@@ -1062,6 +1144,15 @@ def plot_posteriors(posterior, priors):
     # fig.suptitle('Posterior distributions')
     fig.tight_layout()
     plt.show()
+    
+    plot_errors = True
+    var = posterior.get("error")
+    if plot_errors:
+        plt.hist(x=var, bins=20, weights = 100*np.ones_like(var)/len(var),
+                    edgecolor='black', color='grey')
+        plt.xlabel("Error")
+        plt.ylabel("Frequency")
+    
     
 
 def produce_summary_tables(all_results, scenarios):
@@ -1079,37 +1170,55 @@ def produce_summary_tables(all_results, scenarios):
 
     """
     nscen = len(scenarios)
-    final_pop_med = np.median(all_results[:, 2, :], axis=0).astype(int)
-    final_pop_min = np.quantile(all_results[:, 2, :], q=0.025, axis=0).astype(int)
-    final_pop_max = np.quantile(all_results[:, 2, :], q=0.975, axis=0).astype(int)
-    final_pint_med = np.nanmedian(all_results[:, 4, :], axis=0)
-    final_pint_min = np.nanquantile(all_results[:, 4, :], q=0.025, axis=0)
-    final_pint_max = np.nanquantile(all_results[:, 4, :], q=0.975, axis=0)
+    final_pop_med = np.median(all_results[:, 5, :], axis=0).astype(int)
+    final_pop_min = np.quantile(all_results[:, 5, :], q=0.025, axis=0).astype(int)
+    final_pop_max = np.quantile(all_results[:, 5, :], q=0.975, axis=0).astype(int)
+    final_pint_med = np.nanmedian(all_results[:, 7, :], axis=0)
+    final_pint_min = np.nanquantile(all_results[:, 7, :], q=0.025, axis=0)
+    final_pint_max = np.nanquantile(all_results[:, 7, :], q=0.975, axis=0)
     
     # Repetition-wise differences, use if simulations were run using different
     # parameter sets
-    final_pop_diff = 100 * (all_results[:, 2, 1:] - all_results[:, 2, np.repeat(0, nscen-1)]) / all_results[:, 2, np.repeat(0, nscen-1)]
+    final_pop_rel_diff = (all_results[:, 5, 1:] - all_results[:, 5, np.repeat(0, nscen-1)]) / all_results[:, 5, np.repeat(0, nscen-1)]
+    
+    final_pop_diff = 100 * (all_results[:, 5, 1:] - all_results[:, 5, np.repeat(0, nscen-1)]) / all_results[:, 5, np.repeat(0, nscen-1)]
     final_pop_diff_med = np.median(final_pop_diff, axis=0).astype(int)
     final_pop_diff_min = np.quantile(final_pop_diff, q=0.025, axis=0).astype(int)
     final_pop_diff_max = np.quantile(final_pop_diff, q=0.975, axis=0).astype(int)
-    final_pint_diff = 100 * (all_results[:, 4, 1:] - all_results[:, 4, np.repeat(0, nscen-1)]) / all_results[:, 4, np.repeat(0, nscen-1)]
+    # rel_diff = (all_results[:, 5, 1:] - all_results[:, 5, np.repeat(0, nscen-1)]) / all_results[:, 5, np.repeat(0, nscen-1)]
+    # (100 * (np.quantile(final_pop_rel_diff, q=0.975, axis=0))).astype(int)
+    final_pint_diff = 100 * (all_results[:, 7, 1:] - all_results[:, 7, np.repeat(0, nscen-1)]) / all_results[:, 7, np.repeat(0, nscen-1)]
     final_pint_diff_med = np.median(final_pint_diff, axis=0).astype(int)
     final_pint_diff_min = np.quantile(final_pint_diff, q=0.025, axis=0).astype(int)
     final_pint_diff_max = np.quantile(final_pint_diff, q=0.975, axis=0).astype(int)
     
-    # Overall differences, use if simulations were run using same param set
-    final_pop_diff_min = 100 * (np.quantile(all_results[:, 2, 1:], q=0.025, axis=0) - 
-                                np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.975, axis=0)) / \
-                                np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.975, axis=0)
-    final_pop_diff_max = 100 * (np.quantile(all_results[:, 2, 1:], q=0.975, axis=0) - 
-                                np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.025, axis=0)) / \
-                                np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.025, axis=0)
-    final_pint_diff_min = 100 * (np.nanquantile(all_results[:, 4, 1:], q=0.025, axis=0) - 
-                                np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.975, axis=0)) / \
-                                np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.975, axis=0)
-    final_pint_diff_max = 100 * (np.nanquantile(all_results[:, 4, 1:], q=0.975, axis=0) - 
-                                np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.025, axis=0)) / \
-                                np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.025, axis=0)
+    scens = all_results[:, 5, 1:]
+    baseline = all_results[:, 5, np.repeat(0, nscen-1)]
+    final_pop_diff = scens - baseline
+    final_pop_rel_diff = 100 * final_pop_diff / baseline
+    final_pop_diff_med = np.median(final_pop_rel_diff, axis=0).astype(int)
+    final_pop_diff_min = np.quantile(final_pop_rel_diff, q=0.025, axis=0)
+    final_pop_diff_max = np.quantile(final_pop_rel_diff, q=0.975, axis=0)
+    
+    # counts, bins = np.histogram(final_pop_diff[:, 0])
+    # plt.stairs(counts, bins)
+    # counts, bins = np.histogram(final_pop_rel_diff[:, 2])
+    # plt.stairs(counts, bins)
+    
+    
+    # # Overall differences, use if simulations were run using same param set
+    # final_pop_diff_min = 100 * (np.quantile(all_results[:, 2, 1:], q=0.025, axis=0) - 
+    #                             np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.975, axis=0)) / \
+    #                             np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.975, axis=0)
+    # final_pop_diff_max = 100 * (np.quantile(all_results[:, 2, 1:], q=0.975, axis=0) - 
+    #                             np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.025, axis=0)) / \
+    #                             np.quantile(all_results[:, 2, np.repeat(0, nscen-1)], q=0.025, axis=0)
+    # final_pint_diff_min = 100 * (np.nanquantile(all_results[:, 4, 1:], q=0.025, axis=0) - 
+    #                             np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.975, axis=0)) / \
+    #                             np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.975, axis=0)
+    # final_pint_diff_max = 100 * (np.nanquantile(all_results[:, 4, 1:], q=0.975, axis=0) - 
+    #                             np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.025, axis=0)) / \
+    #                             np.nanquantile(all_results[:, 4, np.repeat(0, nscen-1)], q=0.025, axis=0)
     
     print(u"Scenario\tFinal population\tMean p_int of final population")
     for iScen in range(len(scenarios)):
@@ -1121,12 +1230,9 @@ def produce_summary_tables(all_results, scenarios):
                                                          final_pint_min[iScen],
                                                          final_pint_max[iScen]))
         if iScen > 0:
-            print("{0}\t{1:+g}% [{2:+.0f}%, {3:+.0f}%]\t{4:+g}% [{5:+.0f}%, {6:+.0f}%]".format("", 
+            print("{0}\t{1:+g}% [{2:+.0f}%, {3:+.0f}%]\t".format("", 
                                                              final_pop_diff_med[iScen-1],
                                                              final_pop_diff_min[iScen-1],
-                                                             final_pop_diff_max[iScen-1],
-                                                             final_pint_diff_med[iScen-1],
-                                                             final_pint_diff_min[iScen-1],
-                                                             final_pint_diff_max[iScen-1]))
+                                                             final_pop_diff_max[iScen-1]))
     
    

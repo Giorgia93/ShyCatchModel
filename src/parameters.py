@@ -17,7 +17,7 @@ class Params:
         res_date = "20230814"
         self.posterior_results_file = "../results/" + res_date + "/posteriors_" + res_date + ".csv"
         
-        # res_date = date.today().strftime("%Y%m%d")
+        res_date = date.today().strftime("%Y%m%d")
         self.simulation_Cresults_file = "../results/" + res_date + "/model_captures_" + res_date + ".csv"
         self.simulation_C2results_file = "../results/" + res_date + "/model_captures_jumpdate_" + res_date + ".csv"
         self.simulation_Nresults_file = "../results/" + res_date + "/model_N_" + res_date + ".csv"
@@ -73,17 +73,17 @@ class Params:
         self.max_pop_size = 1000            # Maximum population
         
         self.k = 9                          # Carrying capacity per ha (Warburton2009)
-        self.study_area = 176               # (ha)
+        self.study_area = 175               # was 176 ? (ha)
         self.K = self.k * self.study_area   # Carrying capacity
         self.Kcap = int(self.K * 1.5)       # Pop size cap for array initialisation
         self.D0 = self.N0 / self.study_area # Initial density
         
         # Life-span
-        self.life_span = 13;    # life span in years (Cowan 2001)
+        self.life_span = 13    # life span in years (Cowan 2001)
 
         # Mortality rate
-        self.daily_mort_rate = 1 / (self.life_span * 365 + 1);    # Lustig2018
-        self.annual_mort_rate = 1 / (self.life_span + 1);
+        self.daily_mort_rate = 1 / (self.life_span * 365 + 1)    # Lustig2018
+        self.annual_mort_rate = 1 / (self.life_span + 1)
           
         # Reproduction and density-dependent newborn mortality rates
         self.annual_rep_rate = 0.77         # Hone 2010b, Hickling and Pekelharing 1989b
@@ -96,7 +96,12 @@ class Params:
                                / (60*60*24))
         self.rep_sd = 20        # All animals will reproduce between rep_peakday +- 3*rep_sd
         self.birth_prob = scipy.stats.norm(self.rep_peakday, self.rep_sd).pdf(range(365)) # Birth probability per day from normal distribution 
-
+        # self.birth_prob = scipy.stats.norm(90, self.rep_sd).pdf(range(365)) # Birth probability per day from normal distribution 
+        # np.trapz(self.birth_prob)
+        # self.t0 = datetime.strptime('01/01/1900 00:00:00', '%m/%d/%Y %H:%M:%S')
+        # from matplotlib import pyplot as plt
+        # plt.plot(self.birth_prob)
+        
         # Behaviour
         self.beta_mean = 0.3                # Mean of p_int distribution
         self.beta_var = 0.1                 # Var of p_int distribution

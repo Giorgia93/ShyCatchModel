@@ -18,8 +18,6 @@ def main():
     print("Hiiiiiyaaaaa")
     params = Params()
     pop = Population(params)
-    pop.print_pop_size()
-    pop.print_hr_radius()
     
     N_history = np.zeros(params.t_max)  # Initialisation of density data array
     hr_radius_history = np.zeros(params.t_max)  # Initialisation of hr_radius data array
@@ -37,7 +35,7 @@ def main():
         if np.mod(t, 100) == 0:
             print("Day {0}. Population size = {1}".format(t, pop.pop_size))
         
-        # If less than mim_pop or time > 1000 days, stop simulation
+        # If less than min_pop or time > 1000 days, stop simulation
         if pop.pop_size < params.min_pop:
             print('Eradication complete in {0} days. {1} possums left.'.format(
                 t, pop.pop_size))
